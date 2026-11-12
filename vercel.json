@@ -1,0 +1,15 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/admin/login", "destination": "/pages/admin-login/index.html" },
+    { "source": "/admin/settings", "destination": "/pages/admin-settings/index.html" },
+    { "source": "/admin/spin", "destination": "/pages/admin-spin/index.html" },
+    { "source": "/leaderboard", "destination": "/pages/leaderboard/index.html" },
+    { "source": "/quest-map", "destination": "/pages/quest-map/index.html" },
+    { "source": "/register", "destination": "/pages/register/index.html" },
+    { "source": "/review-submissions", "destination": "/pages/review-submissions/index.html" },
+    { "source": "/teams", "destination": "/pages/teams/index.html" },
+    { "source": "/present-spin", "destination": "/pages/present-spin/index.html" }
+  ]
+}
