@@ -98,7 +98,7 @@ export default function QuestBoard(props: Props) {
       await action()
       return true
     } catch (error) {
-      setAppError(error instanceof Error ? error.message : 'ทำรายการไม่สำเร็จ')
+      setAppError(getActionErrorMessage(error))
       return false
     }
   }
@@ -526,6 +526,14 @@ export default function QuestBoard(props: Props) {
 
   function isMissingProfileError(error: unknown) {
     return error instanceof Error && error.message === 'ไม่พบโปรไฟล์ผู้ใช้'
+  }
+
+  function getActionErrorMessage(error: unknown) {
+    if (error instanceof Error) return error.message
+    if (typeof error !== 'object' || error === null) return 'ทำรายการไม่สำเร็จ'
+    if ('message' in error && typeof error.message === 'string') return error.message
+    if ('code' in error && typeof error.code === 'string') return `ทำรายการไม่สำเร็จ (${error.code})`
+    return 'ทำรายการไม่สำเร็จ'
   }
 
   return (

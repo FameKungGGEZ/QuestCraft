@@ -41,7 +41,7 @@ export function QuestPanel({ quest, status, submission, onClose, onSubmit, onCan
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -16 }}
       transition={{ duration: 0.22, ease }}
-      className="absolute inset-x-0 bottom-0 z-20 flex max-h-[78%] cursor-auto flex-col rounded-t-xl border border-line bg-panel sm:inset-x-auto sm:bottom-3 sm:left-3 sm:top-3 sm:max-h-none sm:w-[420px] sm:rounded-xl lg:left-5 lg:top-5 lg:bottom-5"
+      className="absolute inset-x-0 bottom-0 z-20 flex max-h-[65%] cursor-auto flex-col rounded-t-xl border border-line bg-panel sm:inset-x-auto sm:bottom-3 sm:left-3 sm:top-3 sm:max-h-none sm:w-[420px] sm:rounded-xl lg:left-5 lg:top-5 lg:bottom-5"
     >
       <header className="flex items-start gap-3 border-b border-line p-5">
         <div className="min-w-0 flex-1">
