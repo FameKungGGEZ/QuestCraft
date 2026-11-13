@@ -481,13 +481,19 @@ BEGIN
   END IF;
 
   SELECT COALESCE(
-    array_agg(DISTINCT answer ->> 'storagePath')
-      FILTER (WHERE answer ->> 'kind' = 'file' AND NULLIF(answer ->> 'storagePath', '') IS NOT NULL),
+    array_agg(DISTINCT parsed.answer ->> 'storagePath')
+      FILTER (
+        WHERE parsed.answer ->> 'kind' = 'file'
+          AND NULLIF(parsed.answer ->> 'storagePath', '') IS NOT NULL
+      ),
     ARRAY[]::text[]
   )
   INTO storage_paths
-  FROM public.submissions
-  WHERE team_id = target_team_id;
+  FROM (
+    SELECT answer::jsonb AS answer
+    FROM public.submissions
+    WHERE team_id = target_team_id
+  ) AS parsed;
 
   IF EXISTS (
     SELECT 1

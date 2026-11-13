@@ -86,20 +86,18 @@ export default function QuestBoard(props: Props) {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [appData, setAppData] = useState<QuestcraftData | null>(null)
   const [authReady, setAuthReady] = useState(false)
-  const [appError, setAppError] = useState('')
   const [appNotice, setAppNotice] = useState('')
   const [spinInitialized, setSpinInitialized] = useState(false)
   const [classrooms, setClassrooms] = useState<string[]>([])
   const [classroomsError, setClassroomsError] = useState('')
 
   const runAction = async (action: () => Promise<void>): Promise<boolean> => {
-    setAppError('')
     setAppNotice('')
     try {
       await action()
       return true
     } catch (error) {
-      setAppError(getActionErrorMessage(error))
+      console.error('[Questcraft] Action failed', error)
       return false
     }
   }
@@ -135,7 +133,6 @@ export default function QuestBoard(props: Props) {
     setProfile(nextProfile)
     setAppData(nextData)
     setQuestsOpen(nextData.questsOpen)
-    setAppError('')
     setAppNotice('')
     setSpinInitialized(false)
     setScreen(
@@ -163,7 +160,6 @@ export default function QuestBoard(props: Props) {
             if (!sessionData.session.user.is_anonymous || !isMissingProfileError(error)) throw error
             await signOut()
             if (active) {
-              setAppError('')
               setAppNotice('ล้างเซสชันเก่าที่ไม่มีโปรไฟล์แล้ว คุณสามารถสมัครหรือเข้าสู่ระบบได้')
             }
             return
@@ -184,7 +180,7 @@ export default function QuestBoard(props: Props) {
           )
         }
       } catch (error) {
-        if (active) setAppError(error instanceof Error ? error.message : 'โหลดเซสชันไม่สำเร็จ')
+        if (active) console.error('[Questcraft] Failed to restore session', error)
       } finally {
         if (active) setAuthReady(true)
       }
@@ -215,13 +211,12 @@ export default function QuestBoard(props: Props) {
       (state) => {
         spinState.sync(state)
         setAppData((current) => current ? { ...current, spinState: state } : current)
-        setAppError('')
       },
       (open) => {
         setQuestsOpen(open)
         setAppData((current) => current ? { ...current, questsOpen: open } : current)
       },
-      (error) => setAppError(error.message)
+      (error) => console.error('[Questcraft] Settings subscription failed', error)
     )
     const unsubscribeSubmissions = subscribeQuestcraftSubmissions(
       () => {
@@ -232,11 +227,11 @@ export default function QuestBoard(props: Props) {
             setQuestsOpen(nextData.questsOpen)
           })
           .catch((error: unknown) => {
-            if (active) setAppError(error instanceof Error ? error.message : 'โหลดงานส่งไม่สำเร็จ')
+            if (active) console.error('[Questcraft] Failed to refresh submissions', error)
           })
       },
       (error) => {
-        if (active) setAppError(error.message)
+        if (active) console.error('[Questcraft] Submission subscription failed', error)
       }
     )
     return () => {
@@ -536,26 +531,12 @@ export default function QuestBoard(props: Props) {
     return error instanceof Error && error.message === 'ไม่พบโปรไฟล์ผู้ใช้'
   }
 
-  function getActionErrorMessage(error: unknown) {
-    if (error instanceof Error) return error.message
-    if (typeof error !== 'object' || error === null) return 'ทำรายการไม่สำเร็จ'
-    if ('message' in error && typeof error.message === 'string') return error.message
-    if ('code' in error && typeof error.code === 'string') return `ทำรายการไม่สำเร็จ (${error.code})`
-    return 'ทำรายการไม่สำเร็จ'
-  }
-
   return (
     <>
       {appNotice && (
         <div role="status" className="fixed left-1/2 top-3 z-[100] flex max-w-[calc(100%-1.5rem)] -translate-x-1/2 items-start gap-4 rounded-lg border border-line bg-panel px-4 py-3 text-sm text-fg shadow-xl">
           <span>{appNotice}</span>
           <button type="button" onClick={() => setAppNotice('')} className="shrink-0 underline underline-offset-2">ปิด</button>
-        </div>
-      )}
-      {appError && (
-        <div role="alert" className="fixed left-1/2 top-3 z-[100] flex max-w-[calc(100%-1.5rem)] -translate-x-1/2 items-start gap-4 rounded-lg border border-rose/50 bg-panel px-4 py-3 text-sm text-rose shadow-xl">
-          <span>{appError}</span>
-          <button type="button" onClick={() => setAppError('')} className="shrink-0 underline underline-offset-2">ปิด</button>
         </div>
       )}
       {content}
