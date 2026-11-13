@@ -19,6 +19,7 @@ import type { SpinState } from '../shared/quest/data'
 import {
   createTeam,
   cancelSubmission,
+  disbandTeam,
   deleteQuest,
   getSupabase,
   listRegisteredClassrooms,
@@ -391,6 +392,13 @@ export default function QuestBoard(props: Props) {
             void runAction(async () => {
               await setMyTeam(null)
               await refreshData()
+            })
+          }}
+          onDisband={() => {
+            void runAction(async () => {
+              const warning = await disbandTeam()
+              await refreshData()
+              if (warning) throw new Error(warning)
             })
           }}
         />

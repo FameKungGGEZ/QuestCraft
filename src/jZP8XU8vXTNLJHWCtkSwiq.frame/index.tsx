@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Check, FileUp, ImagePlus, Link2, Play, Plus, Trash2, Type, Video, X } from 'lucide-react'
+import { Check, FileUp, ImagePlus, Link2, Plus, Trash2, Type, Video, X } from 'lucide-react'
 import { AdminShell, AdminTab } from '../shared/quest/AdminShell'
 import { inputClass } from '../shared/quest/AuthLayout'
 import { ANSWER_LABEL, AnswerType, Quest, TEAMS, Team } from '../shared/quest/data'
@@ -68,6 +68,8 @@ export default function QuestManager(props: Props) {
   const [accepts, setAccepts] = useState<AnswerType[]>(quest?.accepts ?? ['file'])
   const [fileTypes, setFileTypes] = useState<string[]>(quest?.fileTypes ?? ['PNG', 'PDF'])
   const [example, setExample] = useState(quest?.example)
+  const [exampleFile, setExampleFile] = useState<File>()
+  const [examplePreviewUrl, setExamplePreviewUrl] = useState('')
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
@@ -76,7 +78,18 @@ export default function QuestManager(props: Props) {
     setAccepts(quest?.accepts ?? ['file'])
     setFileTypes(quest?.fileTypes ?? ['PNG', 'PDF'])
     setExample(quest?.example)
-  }, [picked, quest?.no]) // eslint-disable-line react-hooks/exhaustive-deps
+    setExampleFile(undefined)
+  }, [picked, quest?.no, quest?.example?.storagePath, quest?.example?.src]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!exampleFile) {
+      setExamplePreviewUrl('')
+      return
+    }
+    const url = URL.createObjectURL(exampleFile)
+    setExamplePreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [exampleFile])
 
   useEffect(() => {
     if (!saved) return
@@ -93,6 +106,7 @@ export default function QuestManager(props: Props) {
       accepts,
       fileTypes: accepts.includes('file') ? fileTypes : undefined,
       example,
+      exampleFile,
     }
     if (onSaveQuest) {
       if (!(await onSaveQuest(draft, quest?.no))) return
@@ -246,11 +260,19 @@ export default function QuestManager(props: Props) {
               {example ? (
                 <div className="flex items-center gap-4 rounded-lg border border-line bg-panel p-3">
                   <div className="relative aspect-video w-36 shrink-0 overflow-hidden rounded-md">
-                    <img src={example.src} alt="" className="img-pixel size-full object-cover" />
                     {example.kind === 'video' && (
-                      <span className="absolute inset-0 grid place-items-center bg-ink/30">
-                        <Play className="size-5 fill-fg text-fg" />
-                      </span>
+                      <video
+                        src={exampleFile ? examplePreviewUrl : example.src}
+                        controls
+                        className="size-full object-cover"
+                      />
+                    )}
+                    {example.kind === 'image' && (
+                      <img
+                        src={exampleFile ? examplePreviewUrl : example.src}
+                        alt=""
+                        className="img-pixel size-full object-cover"
+                      />
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
@@ -259,7 +281,8 @@ export default function QuestManager(props: Props) {
                       {example.kind === 'video' ? 'คลิปตัวอย่าง' : 'ภาพตัวอย่าง'}
                     </p>
                     <input
-                      defaultValue={example.caption}
+                      value={example.caption}
+                      onChange={(event) => setExample({ ...example, caption: event.target.value })}
                       className="mt-1 w-full bg-transparent text-sm text-muted outline-none"
                     />
                   </div>
@@ -278,8 +301,24 @@ export default function QuestManager(props: Props) {
                     <ImagePlus className="size-5" /> <Video className="size-5" />
                   </span>
                   <span className="text-sm font-medium">อัปโหลดภาพหรือคลิปตัวอย่าง</span>
-                  <span className="text-xs text-muted">ไม่บังคับ · JPG, PNG, MP4 ไม่เกิน 200 MB</span>
-                  <input type="file" accept="image/*,video/*" className="hidden" />
+                  <span className="text-xs text-muted">ไม่บังคับ · JPG, PNG, MP4, MOV ไม่เกิน 100 MB</span>
+                  <input
+                    type="file"
+                    accept=".png,.jpg,.jpeg,.mp4,.mov"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0]
+                      if (!file) return
+                      const video = /\.(mp4|mov)$/i.test(file.name)
+                      setExample({
+                        kind: video ? 'video' : 'image',
+                        src: '',
+                        caption: '',
+                      })
+                      setExampleFile(file)
+                      event.target.value = ''
+                    }}
+                  />
                 </label>
               )}
             </div>

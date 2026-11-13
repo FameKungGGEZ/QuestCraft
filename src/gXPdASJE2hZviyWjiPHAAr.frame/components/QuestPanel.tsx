@@ -7,7 +7,6 @@ import {
   FileUp,
   Link2,
   Lock,
-  Play,
   Send,
   Type,
   X,
@@ -76,17 +75,10 @@ export function QuestPanel({ quest, status, submission, onClose, onSubmit, onCan
             {quest.example && (
               <figure className="mt-5">
                 <div className="relative aspect-video overflow-hidden rounded-lg border border-line">
-                  <img src={quest.example.src} alt="" className="img-pixel size-full object-cover" />
-                  {quest.example.kind === 'video' && (
-                    <button
-                      type="button"
-                      aria-label="เล่นคลิปตัวอย่าง"
-                      className="absolute inset-0 grid place-items-center bg-ink/30 transition-colors duration-150 hover:bg-ink/10"
-                    >
-                      <span className="grid size-12 place-items-center rounded-full bg-fg text-ink">
-                        <Play className="ml-0.5 size-5 fill-current" />
-                      </span>
-                    </button>
+                  {quest.example.kind === 'video' ? (
+                    <video src={quest.example.src} controls playsInline className="size-full object-contain" />
+                  ) : (
+                    <img src={quest.example.src} alt="" className="img-pixel size-full object-cover" />
                   )}
                 </div>
                 <figcaption className="mt-2 text-xs text-muted">{quest.example.caption}</figcaption>

@@ -159,7 +159,13 @@ export async function loadQuestcraftData(): Promise<QuestcraftData> {
   const progress = (progressResult.data ?? []) as ProgressRow[]
   const rawSubmissions = (submissionResult.data ?? []) as SubmissionRow[]
   const leaderboard = (leaderboardResult.data ?? []) as LeaderboardRow[]
-  const quests = questRows.map(parseQuest)
+  const quests = await Promise.all(questRows.map(async (row) => {
+    const quest = parseQuest(row)
+    if (!quest.example?.storagePath) return quest
+    const { data, error } = await db.storage.from('quest-submissions').createSignedUrl(quest.example.storagePath, 3600)
+    if (error) throw error
+    return { ...quest, example: { ...quest.example, src: data.signedUrl } }
+  }))
   const submissions = await Promise.all(
     rawSubmissions.map(async (row) => {
       const submission = parseSubmission(row, users, questRows)
@@ -300,6 +306,22 @@ export async function updateTeam(teamId: string, values: { name: string; cover: 
   if (error) throw error
 }
 
+export async function disbandTeam(): Promise<string | null> {
+  const db = getSupabase()
+  const { data, error } = await db.rpc('disband_questcraft_team')
+  if (error?.code === 'PGRST202') {
+    throw new Error('Supabase ยังไม่พบ RPC ยุบทีม ให้รัน supabase/connect_app.sql ฉบับล่าสุดใน SQL Editor')
+  }
+  if (error) throw error
+
+  const paths = Array.isArray(data) ? data.filter((path): path is string => typeof path === 'string') : []
+  if (paths.length > 0) {
+    const { error: storageError } = await db.storage.from('quest-submissions').remove(paths)
+    if (storageError) return `ยุบทีมแล้ว แต่ลบไฟล์งานส่งไม่สำเร็จ: ${storageError.message}`
+  }
+  return null
+}
+
 export async function submitAnswer(
   profile: UserProfile,
   questNo: number,
@@ -364,6 +386,33 @@ async function uploadSubmissionFile(db: SupabaseClient, teamId: number, file: Fi
   }
 }
 
+async function uploadQuestExample(
+  db: SupabaseClient,
+  file: File,
+  caption: string
+): Promise<NonNullable<Quest['example']>> {
+  const contentType = getSubmissionFileContentType(file.name)
+  if (!contentType || (!contentType.startsWith('image/') && !contentType.startsWith('video/'))) {
+    throw new Error('รองรับภาพ PNG/JPG และวิดีโอ MP4/MOV เท่านั้น')
+  }
+  if (file.size > 100 * 1024 * 1024) throw new Error('ไฟล์ตัวอย่างต้องมีขนาดไม่เกิน 100 MB')
+
+  const safeName = file.name.replace(/[^A-Za-z0-9._-]/g, '_') || 'example'
+  const storagePath = `examples/${crypto.randomUUID()}-${safeName}`
+  const { error } = await db.storage.from('quest-submissions').upload(storagePath, file, {
+    contentType,
+    upsert: false,
+  })
+  if (error) throw error
+
+  return {
+    kind: contentType.startsWith('video/') ? 'video' : 'image',
+    src: '',
+    caption,
+    storagePath,
+  }
+}
+
 export async function reviewSubmission(id: string, status: SubmissionStatus, feedback?: string) {
   const numericId = Number(id)
   if (!Number.isSafeInteger(numericId)) throw new Error('รหัสงานส่งไม่ถูกต้อง')
@@ -376,37 +425,55 @@ export async function reviewSubmission(id: string, status: SubmissionStatus, fee
 }
 
 export async function saveQuest(quest: QuestDraft, no?: number) {
+  const { exampleFile, ...questValues } = quest
   const payload = {
-    title: quest.title,
-    description: quest.detail,
-    accepts: quest.accepts,
-    file_types: quest.fileTypes ?? [],
-    example: quest.example ?? null,
+    title: questValues.title,
+    description: questValues.detail,
+    accepts: questValues.accepts,
+    file_types: questValues.fileTypes ?? [],
+    example: questValues.example ?? null,
     is_active: true,
   }
   const db = getSupabase()
-  if (no === undefined) {
-    const newNo = await nextQuestNumber()
-    const placeholders = Array.from({ length: newNo - 1 }, (_, index) => ({
-      no: index + 1,
-      title: '',
-      detail: '',
-      accepts: [] as Quest['accepts'],
-    }))
-    const positions = layoutQuests([...placeholders, { ...quest, no: newNo }])
-    const position = positions[positions.length - 1]
-    if (!position) throw new Error('ไม่สามารถจัดตำแหน่งภารกิจใหม่ได้')
-    const { error } = await db.from('quests').insert({
-      ...payload,
-      no: newNo,
-      x: position.x,
-      y: position.y,
-    })
-    if (error) throw error
-  } else {
-    const { data, error } = await db.from('quests').update(payload).eq('no', no).select('no').maybeSingle()
-    if (error) throw error
-    if (!data) throw new Error('ไม่พบภารกิจที่ต้องการแก้ไข')
+  let uploadedPath: string | null = null
+  try {
+    if (exampleFile) {
+      const example = await uploadQuestExample(db, exampleFile, questValues.example?.caption ?? '')
+      uploadedPath = example.storagePath ?? null
+      payload.example = example
+    }
+
+    if (no === undefined) {
+      const newNo = await nextQuestNumber()
+      const placeholders = Array.from({ length: newNo - 1 }, (_, index) => ({
+        no: index + 1,
+        title: '',
+        detail: '',
+        accepts: [] as Quest['accepts'],
+      }))
+      const positions = layoutQuests([...placeholders, { ...questValues, no: newNo }])
+      const position = positions[positions.length - 1]
+      if (!position) throw new Error('ไม่สามารถจัดตำแหน่งภารกิจใหม่ได้')
+      const { error } = await db.from('quests').insert({
+        ...payload,
+        no: newNo,
+        x: position.x,
+        y: position.y,
+      })
+      if (error) throw error
+    } else {
+      const { data, error } = await db.from('quests').update(payload).eq('no', no).select('no').maybeSingle()
+      if (error) throw error
+      if (!data) throw new Error('ไม่พบภารกิจที่ต้องการแก้ไข')
+    }
+  } catch (error) {
+    if (uploadedPath) {
+      const { error: cleanupError } = await db.storage.from('quest-submissions').remove([uploadedPath])
+      if (cleanupError) {
+        throw new Error(`บันทึกภารกิจไม่สำเร็จ และลบไฟล์ตัวอย่างที่อัปโหลดไม่สำเร็จ: ${cleanupError.message}`)
+      }
+    }
+    throw error
   }
 }
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
-import { Crown, Lock, LogOut, Pencil, Plus, ArrowRight } from 'lucide-react'
+import { ArrowRight, Crown, Lock, LogOut, Pencil, Plus, Trash2 } from 'lucide-react'
 import { StudentNav, StudentTab } from '../shared/quest/StudentNav'
 import { COVERS, TEAMS, Team } from '../shared/quest/data'
 import { TeamModal, TeamDraft } from './components/TeamModal'
@@ -29,6 +29,7 @@ type Props = Partial<typeof args> & {
   onUpdate?: (teamId: string, draft: TeamDraft) => void
   onJoin?: (teamId: string) => void
   onLeave?: () => void
+  onDisband?: () => void
 }
 
 export default function Teams(props: Props) {
@@ -47,6 +48,7 @@ export default function Teams(props: Props) {
     onUpdate,
     onJoin,
     onLeave,
+    onDisband,
   } = {
     ...args,
     ...props,
@@ -81,6 +83,7 @@ export default function Teams(props: Props) {
               isOwner={state === 'owner'}
               onEdit={() => setOpen('edit')}
               onLeave={onLeave}
+              onDisband={onDisband}
               onGoQuests={() => onNavigate?.(questsOpen ? 'quests' : 'spin')}
               questsOpen={questsOpen}
               totalQuests={totalQuests}
@@ -210,6 +213,7 @@ function MyTeam({
   isOwner,
   onEdit,
   onLeave,
+  onDisband,
   onGoQuests,
   questsOpen,
   totalQuests,
@@ -218,10 +222,13 @@ function MyTeam({
   isOwner: boolean
   onEdit: () => void
   onLeave?: () => void
+  onDisband?: () => void
   onGoQuests: () => void
   questsOpen: boolean
   totalQuests: number
 }) {
+  const [confirmingDisband, setConfirmingDisband] = useState(false)
+
   return (
     <section className="overflow-hidden rounded-xl border border-line bg-panel">
       <div className="relative h-40 sm:h-52">
@@ -233,13 +240,22 @@ function MyTeam({
             <h1 className="truncate font-display text-3xl font-bold sm:text-4xl">{team.name}</h1>
           </div>
           {isOwner ? (
-            <button
-              type="button"
-              onClick={onEdit}
-              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-md bg-ink/80 px-4 text-sm font-medium backdrop-blur transition-colors duration-150 hover:bg-ink"
-            >
-              <Pencil className="size-4" /> แก้ไขทีม
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onEdit}
+                className="flex h-10 items-center gap-2 whitespace-nowrap rounded-md bg-ink/80 px-4 text-sm font-medium backdrop-blur transition-colors duration-150 hover:bg-ink"
+              >
+                <Pencil className="size-4" /> แก้ไขทีม
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmingDisband(true)}
+                className="flex h-10 items-center gap-2 whitespace-nowrap rounded-md bg-ink/80 px-4 text-sm font-medium text-rose backdrop-blur transition-colors duration-150 hover:bg-ink"
+              >
+                <Trash2 className="size-4" /> ยุบทีม
+              </button>
+            </div>
           ) : (
             <button
               type="button"
@@ -253,6 +269,29 @@ function MyTeam({
       </div>
 
       <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-[1fr_300px]">
+        {confirmingDisband && isOwner && (
+          <div className="flex flex-col gap-3 rounded-lg border border-rose/40 bg-rose/10 p-4 sm:flex-row sm:items-center sm:justify-between lg:col-span-2">
+            <p className="text-sm text-fg/90">
+              ยืนยันยุบทีมไหม? สมาชิกทุกคนจะถูกนำออก และความคืบหน้ากับงานส่งของทีมนี้จะถูกลบถาวร
+            </p>
+            <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmingDisband(false)}
+                className="h-9 rounded-md border border-line px-3 text-sm transition-colors hover:bg-panel"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={onDisband}
+                className="h-9 rounded-md bg-rose px-3 text-sm font-semibold text-white transition-colors hover:bg-rose/80"
+              >
+                ยืนยันยุบทีม
+              </button>
+            </div>
+          </div>
+        )}
         <div>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="font-medium">สมาชิก</h2>

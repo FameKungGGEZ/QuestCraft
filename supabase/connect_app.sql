@@ -452,6 +452,62 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION public.disband_questcraft_team()
+RETURNS text[]
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  profile_id bigint;
+  target_team_id bigint;
+  team_creator_id bigint;
+  storage_paths text[];
+BEGIN
+  SELECT id, team_id INTO profile_id, target_team_id
+  FROM public.users
+  WHERE id = public.current_questcraft_user_id()
+  FOR UPDATE;
+  IF profile_id IS NULL OR target_team_id IS NULL THEN
+    RAISE EXCEPTION 'คุณไม่ได้อยู่ในทีม';
+  END IF;
+
+  SELECT creator_id INTO team_creator_id
+  FROM public.teams
+  WHERE id = target_team_id
+  FOR UPDATE;
+  IF team_creator_id IS DISTINCT FROM profile_id THEN
+    RAISE EXCEPTION 'เฉพาะผู้สร้างทีมเท่านั้นที่ยุบทีมได้';
+  END IF;
+
+  SELECT COALESCE(
+    array_agg(DISTINCT answer ->> 'storagePath')
+      FILTER (WHERE answer ->> 'kind' = 'file' AND NULLIF(answer ->> 'storagePath', '') IS NOT NULL),
+    ARRAY[]::text[]
+  )
+  INTO storage_paths
+  FROM public.submissions
+  WHERE team_id = target_team_id;
+
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'spin_history'
+      AND column_name = 'team_id'
+  ) THEN
+    EXECUTE 'DELETE FROM public.spin_history WHERE team_id = $1' USING target_team_id;
+  END IF;
+
+  DELETE FROM public.quest_progress WHERE team_id = target_team_id;
+  DELETE FROM public.submissions WHERE team_id = target_team_id;
+  UPDATE public.users SET team_id = NULL WHERE team_id = target_team_id;
+  DELETE FROM public.teams WHERE id = target_team_id;
+
+  RETURN storage_paths;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.submit_questcraft_answer(p_quest_no integer, p_answer jsonb)
 RETURNS bigint
 LANGUAGE plpgsql
@@ -711,7 +767,9 @@ BEGIN
   DELETE FROM public.quest_progress WHERE quest_id = v_quest_id;
   DELETE FROM public.quests WHERE id = v_quest_id;
 
-  UPDATE public.quests SET no = no + 1000000;
+  UPDATE public.quests
+  SET no = no + 1000000
+  WHERE id <> v_quest_id;
   WITH ordered AS (
     SELECT id, row_number() OVER (ORDER BY no) AS quest_no
     FROM public.quests
@@ -743,6 +801,7 @@ REVOKE ALL ON FUNCTION public.sign_in_questcraft_teacher(text, text) FROM PUBLIC
 REVOKE ALL ON FUNCTION public.list_questcraft_classrooms() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.create_questcraft_team(text, text, integer) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.join_questcraft_team(bigint) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.disband_questcraft_team() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.submit_questcraft_answer(integer, jsonb) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.cancel_questcraft_submission(bigint) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.review_questcraft_submission(bigint, text, text) FROM PUBLIC;
@@ -760,6 +819,7 @@ GRANT EXECUTE ON FUNCTION public.sign_in_questcraft_teacher(text, text) TO authe
 GRANT EXECUTE ON FUNCTION public.list_questcraft_classrooms() TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.create_questcraft_team(text, text, integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.join_questcraft_team(bigint) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.disband_questcraft_team() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.submit_questcraft_answer(integer, jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.cancel_questcraft_submission(bigint) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.review_questcraft_submission(bigint, text, text) TO authenticated;

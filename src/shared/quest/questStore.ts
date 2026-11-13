@@ -3,7 +3,7 @@ import { QUESTS, Quest } from './data'
 
 export const MAX_QUESTS = 20
 
-export type QuestDraft = Omit<Quest, 'no' | 'x' | 'y'>
+export type QuestDraft = Omit<Quest, 'no' | 'x' | 'y'> & { exampleFile?: File }
 
 /* A winding path: rows of PER_ROW stops that snake left→right, then right→left,
    with a gentle wave so it reads as a trail rather than a grid. */

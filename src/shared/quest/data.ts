@@ -42,7 +42,7 @@ export type Quest = {
   no: number
   title: string
   detail: string
-  example?: { kind: 'image' | 'video'; src: string; caption: string }
+  example?: { kind: 'image' | 'video'; src: string; caption: string; storagePath?: string }
   accepts: AnswerType[]
   fileTypes?: string[]
   /** Position on the quest map world, in px. */
